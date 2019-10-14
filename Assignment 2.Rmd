@@ -1,0 +1,158 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+
+sh <-read.csv("UniversalBank.csv") 
+
+#Data Splitting
+library(dplyr)        
+library(caret)
+library(ISLR)
+#install.packages("kntir")
+library(kntnr)
+library(tidyr)
+
+sh$Personal.Loan <-as.factor(sh$Personal.Loan)
+
+#Creating dummy variables for categorical variables
+library(dummies)
+dummy_model <- dummyVars(~Education, data = sh)
+head(predict(dummy_model,sh))
+Loan_dummy <-dummy.data.frame(sh, names = c("Education"), sep=".")
+Loan_dummy <- subset(Loan_dummy, select = -c(1,5))
+
+#Data Splitting
+norm_model<-preProcess(Loan_dummy, method = c('range'))
+Loan_Dummy_normalized<-predict(norm_model,Loan_dummy)
+Loan_Dummy_Predictors<-Loan_Dummy_normalized[,-10]
+Loan_Dummy_labels<-Loan_Dummy_normalized[,10]
+
+
+Train_Index = createDataPartition(Loan_Dummy_normalized$Personal,p=0.6,list = FALSE) #60% reserved for training
+Train_Data = Loan_Dummy_normalized[Train_Index,]
+Traval_Data = Loan_Dummy_normalized[-Test_Index,]
+Validation_Data = Loan_Dummy_normalized[-Train_Index,]
+summary(Train_Data)
+Test_Index = createDataPartition(Loan_Dummy_normalized$Personal,p=0.4,list = FALSE) #40% reserved for training
+Test_Data = Loan_Dummy_normalized[Test_Index,]
+summary(Test_Data)
+summary(Validation_Data)
+
+#Normalization
+Train_Predictors<-Train_Data[,-10]
+Val_Predictors<-Validation_Data[,-10]
+
+Train_labels <-Train_Data[,10] 
+Val_labels  <-Validation_Data[,10]
+
+Train_labels=as.factor(Train_labels)
+Val_labels=as.factor(Val_labels)
+Loan_Dummy_labels<-as.factor(Loan_Dummy_labels)
+
+
+#Modeling k-NN (Question 1)
+knn.pred <- knn(Train_Predictors,Val_Predictors,cl=Train_labels,k=1,prob = TRUE)
+knn.pred
+
+cust <- c(40, 10, 84, 2, 2, 0, 1, 0, 0, 0, 0, 1, 1)
+knn.pred1 <- knn(Train_Predictors, cust, cl=Train_labels, k=1, prob = TRUE)
+knn.pred1
+
+
+```
+```{r}
+
+#2.	What is a choice of k that balances between overfitting and ignoring the predictor information?
+accuracy.df <- data.frame(k = seq(1, 14, 1), accuracy = rep(0, 14))
+
+for(i in 1:14) {
+                  knn <- knn(Train_Predictors, Val_Predictors, cl = Train_labels, k = i)
+                  accuracy.df[i, 2] <- confusionMatrix(knn, Val_labels)$overall[1] 
+                }
+accuracy.df
+
+which.max( (accuracy.df$accuracy) )
+```
+
+
+Add a new chunk by click,md+Option+I*.
+
+```{r}
+#3.	Show the confusion matrix for the validation data that results from using the best k.
+
+knn.pred3 <- knn(Train_Predictors,Val_Predictors,cl=Train_labels,k=3,prob = TRUE)
+confusionMatrix(knn.pred3,Val_labels)
+```
+```{r}
+#4.	Consider the following customer: Classify the customer using the best k
+
+knn.pred4 <- knn(Train_Predictors, cust, cl=Train_labels, k=3, prob = TRUE)
+knn.pred4
+
+knn.pred4 <- knn(Loan_Dummy_Predictors, cust, cl=Loan_Dummy_labels, k=3, prob = TRUE)
+knn.pred4
+```
+
+
+```{r}
+#5.	Repartition the data, this time into training, validation, and test sets (50% : 30% : 20%)
+
+
+set.seed(15)
+Bank_Partition = createDataPartition(Loan_Dummy_normalized$Personal,p=0.5, list=FALSE) 
+Training_Data = Loan_Dummy_normalized[Bank_Partition,]     #50% of total data assigned to Test data
+Test_Valid_Data = Loan_Dummy_normalized[-Bank_Partition,]
+
+Test_Index = createDataPartition(Test_Valid_Data$Personal.Loan, p=0.6, list=FALSE) 
+Validation_Data = Test_Valid_Data[Test_Index,]    #to achieve 50:30:20 ratio among the... 
+#.......train, validation and testing, i partioned 60% test_valid_data to test and train
+Test_Data = Test_Valid_Data[-Test_Index,] 
+
+
+Training_Predictors<-Training_Data[,-10]
+Test_Predictors<-Test_Data[,-10]
+Validation_Predictors<-Validation_Data[,-10]
+
+
+Training_labels <-Training_Data[,10]
+Test_labels <-Test_Data[,10]
+Validation_labels <-Validation_Data[,10]
+
+
+Training_labels=as.factor(Training_labels)
+Test_labels<-as.factor(Test_labels)
+Validation_labels=as.factor(Validation_labels)
+
+knn.pred5 <- knn(Training_Predictors, Test_Predictors , cl=Training_labels, k=3, prob = TRUE)
+knn.pred5
+confusionMatrix(knn.pred5,Test_labels)
+
+knn.pred6 <- knn(Validation_Predictors, Test_Predictors, cl=Validation_labels, k=3, prob = TRUE)
+knn.pred6
+confusionMatrix(knn.pred6,Test_labels)
+
+
+
+#  Accuracy : 0.956 for knn.pred5 for Training set
+#  Accuracy : 0.951 for knn.pred6 for Validation set
+#Comment:
+# Reason:  The Model performs better gives you better accuracy when you give more data to the model.In the given problem, the Training set has more data compared to validation set. Hence, Accuracy has improved. 
+
+```
+
+
+
+
+
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
