@@ -1,0 +1,159 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+sh <-read.csv("UniversalBank.csv") 
+#Data Splitting
+library(caret)
+library(class)
+library(gmodels)
+library(FNN)
+
+sh$Personal.Loan <-as.factor(sh$Personal.Loan)
+sh$Education <-as.factor(sh$Education)
+levels(sh$Education)
+
+#Creating dummy variables for categorical variables
+library(dummies)
+dummy_model <- dummyVars(~Education, data = sh)
+model<-predict(dummy_model, sh)
+sh<-cbind(sh,model)
+View(sh)
+
+sh1<-sh[, -c(1,5,8)]
+set.seed(123)
+View(sh1)
+
+#Data Splitting
+Train_Index = createDataPartition(sh1$Personal,p=0.6,list = FALSE) 
+Train_Data = sh1[Train_Index,]
+Validation_Data = sh1[-Train_Index,]
+Test_Index = createDataPartition(sh1$Personal,p=0.2,list = FALSE) #40% reserved for training
+Test_Data = sh1[Test_Index,]
+Traval_Data = sh1[-Test_Index,]
+summary(Test_Data)
+summary(Validation_Data)
+
+#Normalization
+train.norm.df <-Train_Data[,-7]
+test.norm.df <-Test_Data[,-7]
+valid.norm.df <- Validation_Data[,-7]
+traval.norm.df <- Traval_Data[,-7]
+
+norm.value.df <-preProcess(train.norm.df, method = c("center", "scale"))
+train.norm.df <-predict(norm.value.df, train.norm.df)
+View(train.norm.df)
+test.norm.df <-predict(norm.value.df, test.norm.df)
+valid.norm.df <-predict(norm.value.df, valid.norm.df)
+traval.norm.df <-predict(norm.value.df, traval.norm.df)
+View(test.norm.df)
+
+
+#Modeling k-NN (Question 1)
+nn<-knn(train.norm.df, test.norm.df, Train_Data$Personal.Loan, k=1, prob = TRUE)
+CrossTable(x=Test_Data$Personal.Loan, y=nn, prop.chisq = FALSE)
+
+#Accuracy = 984/1000= 0.984
+```
+```{r}
+
+#2.	What is a choice of k that balances between overfitting and ignoring the predictor information?
+accuracy.df <- data.frame(k = seq(1, 14, 1), accuracy = rep(0, 14))
+
+for(i in 1:14) {
+                  nn1 <- knn(train.norm.df, valid.norm.df, cl = Train_Data$Personal.Loan, k = i)
+                  accuracy.df[i, 2] <- confusionMatrix(nn1, Validation_Data$Personal.Loan)$overall[1] 
+                }
+accuracy.df
+accuracy.df[which.max(accuracy.df$accuracy),]
+
+```
+
+Answer: The best k = 3
+
+```{r}
+#3.	Show the confusion matrix for the validation data that results from using the best k.
+
+nn2 <- knn(train.norm.df, valid.norm.df, cl=Train_Data$Personal.Loan,k=3,prob = TRUE)
+confusionMatrix(nn2,Validation_Data$Personal.Loan)
+```
+```{r}
+#4.	Consider the following customer: Classify the customer using the best k
+
+nn3 <-knn(train.norm.df, valid.norm.df, cl=Train_Data$Personal.Loan, k=3, prob = TRUE)
+customer <-data.frame("Age"= 40, "Experience"= 10, "Income" = 84, "Family" = 2, "CCAvg" = 2,"Mortgage" = 0, "Securities.Account" = 0, "CD.Account" = 0,"Online" = 1,  "CreditCard" = 1, "Education.1" = 0, "Education.2" = 1, "Education.3" = 0)
+customer
+
+nn4 <-knn(train.norm.df, customer, cl= Train_Data$Personal.Loan,k=3,prob = TRUE)
+
+```
+
+
+```{r}
+#5.	Repartition the data, this time into training, validation, and test sets (50% : 30% : 20%)
+
+#Data Splitting
+Train_Index1 = createDataPartition(sh1$Personal,p=0.5,list = FALSE) 
+Train_Data1 = sh1[Train_Index1,]
+Validation_Data1 = sh1[-Train_Index1,]
+Test_Index1 = createDataPartition(Validation_Data1$Personal,p=0.2,list = FALSE) 
+Test_Data1 = Validation_Data1[Test_Index1,]
+Validation_Data1 = Validation_Data1[-Test_Index1,]
+summary(Test_Data1)
+summary(Validation_Data1)
+
+#Normalization
+train.norm.df1 <-Train_Data1[,-7]
+test.norm.df1 <-Test_Data1[,-7]
+valid.norm.df1 <- Validation_Data1[,-7]
+
+norm.value.df1 <-preProcess(train.norm.df1, method = c("center", "scale"))
+train.norm.df1 <-predict(norm.value.df1, train.norm.df1)
+View(train.norm.df1)
+test.norm.df1 <-predict(norm.value.df1, test.norm.df1)
+valid.norm.df1 <-predict(norm.value.df1, valid.norm.df1)
+
+
+#Modeling k-NN (Question 1)
+nn5<-knn(train.norm.df1, test.norm.df1, Train_Data1$Personal.Loan, k=1, prob = TRUE)
+CrossTable(x=Test_Data1$Personal.Loan, y=nn5, prop.chisq = FALSE)
+
+
+#Accuracy = 0.956
+```
+```{r}
+accuracy.df1 <- data.frame(k = seq(1, 14, 1), accuracy = rep(0, 14))
+
+for(i in 1:14) {
+                  nn6 <- knn(train.norm.df1, valid.norm.df1, cl = Train_Data1$Personal.Loan, k = i)
+                  accuracy.df1[i, 2] <- confusionMatrix(nn6, Validation_Data1$Personal.Loan)$overall[1] 
+                }
+accuracy.df1
+accuracy.df1[which.max(accuracy.df1$accuracy),]
+
+
+#The Best K value= 1
+#K=0.959
+
+#Reason =  Dataset is same but due to different percentage for data partition there is slight change in the accuracy. 
+```
+
+
+
+
+
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
